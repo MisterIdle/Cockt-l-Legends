@@ -10,6 +10,7 @@ API_URL = "https://www.thecocktaildb.com/api/json/v1/1/list.php?i=list"
 CHAMPION_DATA_URL = "https://ddragon.leagueoflegends.com/cdn/14.6.1/data/en_US/champion.json"
 IMG_BASE_URL = "https://ddragon.leagueoflegends.com/cdn/14.6.1/img/champion/"
 IMAGE_DIR = "./images"
+
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
 action_templates = [
@@ -95,148 +96,32 @@ def extract_significant_colors(image_path, top_n=3):
     max_count = max(count for count, _ in filtered_colors)
     scored = [(max_count - count, col) for count, col in filtered_colors]
     scored.sort(reverse=True)
-    significant_colors = [col for _, col in scored[:top_n]]
-    return significant_colors
+    return [col for _, col in scored[:top_n]]
 
 def color_similarity(hex1, hex2):
     r1, g1, b1 = [int(hex1[i:i+2], 16) for i in (1, 3, 5)]
     r2, g2, b2 = [int(hex2[i:i+2], 16) for i in (1, 3, 5)]
     return abs(r1 - r2) + abs(g1 - g2) + abs(b1 - b2)
 
-def string_similarity(str1, str2):
-    return len(set(str1.lower().split()) & set(str2.lower().split()))
-
-def generate_complex_random_name(champion_name, ingredients_list):
-    if ingredients_list:
-        ingredient = random.choice(ingredients_list)
-    else:
-        ingredient = random.choice(ingredient_data)["ingredient"]
-        ingredients_list.append(ingredient)
-    name_parts = [
-        champion_name[:5],
-        ingredient[:5]
-    ]
-    separators = [" ", "'", " with ", "-", "_"]
-    separator = random.choice(separators) if random.random() < 0.7 else ""
-    suffixes = [" infused", " blend", " mix", " fusion", " twist"]
-    suffix = random.choice(suffixes) if random.random() < 0.4 else ""
-    name = f"{name_parts[0]}{separator}{name_parts[1]}{suffix}".strip()
-    replacements = {'a': '@', 'e': '3', 'i': '1', 'o': '0', 's': '$'}
-    unique_name = ''.join(c if random.random() > 0.1 else replacements.get(c, c) for c in name)
-    return unique_name, ingredient
-
 def find_similar_ingredients(champion_name, ingredients, threshold=0.6):
     matches = []
     for item in ingredients:
         ing_name = item["ingredient"]
-        ratio = difflib.SequenceMatcher(None, champion_name.lower(), ing_name.lower()).ratio()
-        if ratio >= threshold or ing_name.lower() in champion_name.lower():
+        if difflib.SequenceMatcher(None, champion_name.lower(), ing_name.lower()).ratio() >= threshold or ing_name.lower() in champion_name.lower():
             matches.append(item)
     return matches
 
 def generate_complex_random_name(champion_name, ingredients_list):
     matching_ingredients = find_similar_ingredients(champion_name, ingredient_data, threshold=0.5)
-    if matching_ingredients:
-        ingredient = random.choice(matching_ingredients)
-    else:
-        ingredient = random.choice(ingredient_data)
+    ingredient = random.choice(matching_ingredients) if matching_ingredients else random.choice(ingredient_data)
     if ingredient["ingredient"] not in ingredients_list:
         ingredients_list.append(ingredient["ingredient"])
-    name_parts = [
-        champion_name[:5],
-        ingredient["ingredient"][:5]
-    ]
-    separators = [" ", "'", " with ", "-", "_"]
-    separator = random.choice(separators) if random.random() < 0.7 else ""
-    suffixes = [" infused", " blend", " mix", " fusion", " twist"]
-    suffix = random.choice(suffixes) if random.random() < 0.4 else ""
+    name_parts = [champion_name[:5], ingredient["ingredient"][:5]]
+    separator = random.choice([" ", "'", " with ", "-", "_"]) if random.random() < 0.7 else ""
+    suffix = random.choice([" infused", " blend", " mix", " fusion", " twist"]) if random.random() < 0.4 else ""
     name = f"{name_parts[0]}{separator}{name_parts[1]}{suffix}".strip()
     replacements = {'a': '@', 'e': '3', 'i': '1', 'o': '0', 's': '$'}
-    unique_name = ''.join(c if random.random() > 0.1 else replacements.get(c.lower(), c) for c in name)
-    return unique_name, ingredient["ingredient"]
-
-print("Fetching ingredients...")
-resp = requests.get(API_URL)
-ingredient_data = []
-if resp.ok:
-    data = resp.json()
-    for ing in data.get("drinks", []):
-        name = ing["strIngredient1"]
-        colors = {
-            "vodka": ["#D1D1D1"],
-            "rum": ["#C98A4A"],
-            "gin": ["#B8D1D1"],
-            "lime": ["#A8E04E"],
-            "lemon": ["#F5E200"]
-        }.get(name.lower(), ["#FF5733", "#F1E1B3"])
-        ingredient_data.append({"ingredient": name, "colors": colors})
-else:
-    print("Failed to get ingredients.")
-    exit()
-
-print("Fetching champion data...")
-resp = requests.get(CHAMPION_DATA_URL)
-if not resp.ok:
-    print("Error fetching champions.")
-    exit()
-
-champions = resp.json()["data"]
-champion_colors = {}
-final_character_data = []
-
-print("Processing champion images...")
-for champ_name, champ_info in champions.items():
-    filename = champ_info['image']['full']
-    img_url = f"{IMG_BASE_URL}{filename}"
-    img_path = os.path.join(IMAGE_DIR, filename)
-    if not os.path.exists(img_path):
-        r = requests.get(img_url)
-        if r.ok:
-            with open(img_path, "wb") as f:
-                f.write(r.content)
-    try:
-        colors = extract_significant_colors(img_path, top_n=5)
-        hex_colors = [rgb_to_hex(c) for c in colors]
-        dominant = rgb_to_hex(colors[0])
-        champion_colors[champ_name] = dominant
-        final_character_data.append({
-            "Name": champ_name,
-            "Image": img_url,
-            "Palette": hex_colors,
-            "Mixed": dominant,
-            "Ingredients": [],
-            "Cocktail Name": ""
-        })
-        print(f"{champ_name} => {hex_colors}")
-    except Exception as e:
-        print(f"{champ_name}: {e}")
-
-def match_ingredient_to_champion(ingredient, champion_colors):
-    matched = set()
-    for champ, color in champion_colors.items():
-        for ref in ingredient["colors"]:
-            if color_similarity(color, ref) <= 100:
-                matched.add(champ)
-    return list(matched)
-
-final_cocktail_data = []
-for ing in ingredient_data:
-    matches = match_ingredient_to_champion(ing, champion_colors)
-    final_cocktail_data.append({
-        "Ingredient": ing["ingredient"],
-        "Colors": ing["colors"],
-        "Champions": matches
-    })
-
-for champ in final_character_data:
-    similar_ings = find_similar_ingredients(champ["Name"], ingredient_data)
-    base_ings = random.sample(ingredient_data, random.randint(2, 5))
-    selected = list({i["ingredient"] for i in (similar_ings + base_ings)})
-    champ["Ingredients"] = selected
-    name, ingr = generate_complex_random_name(champ["Name"], champ["Ingredients"])
-    if ingr not in champ["Ingredients"]:
-        champ["Ingredients"].append(ingr)
-    champ["Cocktail Name"] = name
+    return ''.join(c if random.random() > 0.1 else replacements.get(c.lower(), c) for c in name), ingredient["ingredient"]
 
 def generate_preparation_steps(ingredients):
     steps = []
@@ -251,28 +136,61 @@ def generate_preparation_steps(ingredients):
         used_templates.add(template)
         quantity = round(random.uniform(0.2, 5.0), 1)
         unit = random.choice(["ml", "cl", "oz"])
-        if "{time}" in template:
-            time = random.randint(5, 30)
-            step = template.format(ingredient=ing, time=time, quantity=quantity, unit=unit)
-        else:
-            step = template.format(ingredient=ing, quantity=quantity, unit=unit)
-        steps.append(step)
+        time = random.randint(5, 30) if "{time}" in template else None
+        steps.append(template.format(ingredient=ing, time=time, quantity=quantity, unit=unit))
     final = random.choice(final_steps)
-    if "{time}" in final:
-        steps.append(final.format(time=random.randint(5, 15)))
-    else:
-        steps.append(final)
+    steps.append(final.format(time=random.randint(5, 15)) if "{time}" in final else final)
     return steps
 
+resp = requests.get(API_URL)
+ingredient_data = []
+if resp.ok:
+    for ing in resp.json().get("drinks", []):
+        name = ing["strIngredient1"]
+        colors = {"vodka": ["#D1D1D1"], "rum": ["#C98A4A"], "gin": ["#B8D1D1"], "lime": ["#A8E04E"], "lemon": ["#F5E200"]}.get(name.lower(), ["#FF5733", "#F1E1B3"])
+        ingredient_data.append({"ingredient": name, "colors": colors})
+
+resp = requests.get(CHAMPION_DATA_URL)
+champions = resp.json()["data"]
+champion_colors = {}
+final_character_data = []
+
+for champ_name, champ_info in champions.items():
+    filename = champ_info['image']['full']
+    img_url = f"{IMG_BASE_URL}{filename}"
+    img_path = os.path.join(IMAGE_DIR, filename)
+    if not os.path.exists(img_path):
+        r = requests.get(img_url)
+        if r.ok:
+            with open(img_path, "wb") as f:
+                f.write(r.content)
+    try:
+        colors = extract_significant_colors(img_path, top_n=5)
+        hex_colors = [rgb_to_hex(c) for c in colors]
+        dominant = rgb_to_hex(colors[0])
+        champion_colors[champ_name] = dominant
+        final_character_data.append({"Name": champ_name, "Image": img_url, "Palette": hex_colors, "Mixed": dominant, "Ingredients": [], "Cocktail Name": ""})
+    except Exception:
+        pass
+
+final_cocktail_data = []
+for ing in ingredient_data:
+    matches = list({champ for champ, color in champion_colors.items() for ref in ing["colors"] if color_similarity(color, ref) <= 100})
+    final_cocktail_data.append({"Ingredient": ing["ingredient"], "Colors": ing["colors"], "Champions": matches})
+
 for champ in final_character_data:
+    similar_ings = find_similar_ingredients(champ["Name"], ingredient_data)
+    base_ings = random.sample(ingredient_data, random.randint(2, 5))
+    champ["Ingredients"] = list({i["ingredient"] for i in (similar_ings + base_ings)})
+    name, ingr = generate_complex_random_name(champ["Name"], champ["Ingredients"])
+    if ingr not in champ["Ingredients"]:
+        champ["Ingredients"].append(ingr)
+    champ["Cocktail Name"] = name
     random.shuffle(champ["Ingredients"])
     champ["Preparation"] = generate_preparation_steps(champ["Ingredients"])
 
-print("Saving JSON data...")
 with open("character.json", "w", encoding="utf-8") as f:
     json.dump(final_character_data, f, indent=4, ensure_ascii=False)
 
 with open("cocktail.json", "w", encoding="utf-8") as f:
     json.dump(final_cocktail_data, f, indent=4, ensure_ascii=False)
-
-print("Done. Files saved: character.json & cocktail.json")

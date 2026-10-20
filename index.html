@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cockt'l Legends</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="pageLoader">
+        <div class="spinner"></div>
+    </div>
+
+    <header>
+        <div class="header-content">
+            <a href="index.html" id="site-name">Cockt'l Legends</a>
+        </div>
+    </header>
+
+    <input type="text" id="searchInput" placeholder="Search by ingredient, name, or cocktail...">
+
+    <div class="container" id="championContainer"></div>
+
+    <div id="transitionOverlay"></div>
+
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.body.classList.add('loaded');
+            }, 300);
+        });
+
+        let allChampions = [];
+
+        function createChampionCard(champ, index) {
+            const champDiv = document.createElement("div");
+            champDiv.classList.add("champion");
+            champDiv.style.animationDelay = `${index * 0.05}s`;
+            
+            champDiv.innerHTML = `
+                <div class="image-container" style="border-color:${champ.Mixed};">
+                    <img src="${champ.Image}" alt="${champ.Name}">
+                </div>
+                <h3 style="color: ${champ.Mixed};">${champ.Name}</h3>
+                <h5 style="color: ${champ.Mixed};">${champ["Cocktail Name"]}</h5>
+                <div class="palette">
+                    ${champ.Palette.map(color => `<div class="color-box" style="background:${color};"></div>`).join("")}
+                </div>
+                <div class="ingredients-list">
+                    ${champ.Ingredients.map(ingredient => `<div class="ingredient-item">${ingredient}</div>`).join("")}
+                </div>
+            `;
+
+            champDiv.addEventListener("click", (e) => {
+                const overlay = document.getElementById("transitionOverlay");
+                const x = e.clientX;
+                const y = e.clientY;
+
+                overlay.style.background = champ.Mixed;
+                overlay.style.top = `${y}px`;
+                overlay.style.left = `${x}px`;
+                overlay.style.width = "100px";
+                overlay.style.height = "100px";
+                overlay.style.transform = "translate(-50%, -50%) scale(0)";
+                overlay.style.transition = "none";
+
+                requestAnimationFrame(() => {
+                    overlay.style.transition = "transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)";
+                    overlay.style.transform = "translate(-50%, -50%) scale(40)";
+                });
+
+                setTimeout(() => {
+                    window.location.href = `view.html?name=${encodeURIComponent(champ.Name)}`;
+                }, 700);
+            });
+
+            return champDiv;
+        }
+
+        function renderChampions(champions) {
+            const container = document.getElementById("championContainer");
+            container.innerHTML = "";
+            champions.forEach((champ, index) => {
+                container.appendChild(createChampionCard(champ, index));
+            });
+        }
+
+        async function fetchChampions() {
+            try {
+                const res = await fetch("character.json");
+                allChampions = await res.json();
+                renderChampions(allChampions);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        document.getElementById("searchInput").addEventListener("input", (e) => {
+            const value = e.target.value.toLowerCase();
+            const filtered = allChampions.filter(champ => {
+                return champ.Name.toLowerCase().includes(value)
+                    || champ["Cocktail Name"].toLowerCase().includes(value)
+                    || champ.Ingredients.some(ing => ing.toLowerCase().includes(value));
+            });
+            renderChampions(filtered);
+        });
+
+        window.addEventListener("pageshow", () => {
+            const overlay = document.getElementById("transitionOverlay");
+            if(overlay) {
+                overlay.style.transition = "none";
+                overlay.style.transform = "translate(-50%, -50%) scale(0)";
+            }
+        });
+
+        fetchChampions();
+    </script>
+</body>
+</html>

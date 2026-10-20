@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Champion View</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="pageLoader">
+        <div class="spinner"></div>
+    </div>
+
+    <header>
+        <div class="header-content">
+            <a href="index.html" id="site-name">Cockt'l Legends</a>
+        </div>
+    </header>
+
+    <div class="view-container">
+        <div id="vertical-palette" class="vertical-palette"></div>
+
+        <div class="view-header">
+            <img id="championImage" src="" alt="">
+            <div id="glass-container">
+                <div id="liquid-overlay"></div>
+                <img src="import/verre.png" alt="Glass" class="glass" id="glass">
+            </div>
+        </div>
+        
+        <h1 id="cocktailName"></h1>
+
+        <div class="box">
+            <h3>Ingredients</h3>
+            <div id="ingredients"></div>
+        </div>
+
+        <div class="box">
+            <h3>Preparation</h3>
+            <ul id="preparation-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.body.classList.add('loaded');
+            }, 300);
+        });
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const championName = urlParams.get('name');
+    
+        fetch("character.json")
+            .then(res => res.json())
+            .then(data => {
+                const champ = data.find(c => c.Name === championName);
+                if (!champ) return;
+    
+                document.getElementById("championImage").src = champ.Image;
+                document.getElementById("championImage").alt = champ.Name;
+                document.getElementById("championImage").style.borderColor = champ.Mixed;
+                
+                document.getElementById("cocktailName").textContent = champ["Cocktail Name"];
+                document.getElementById("cocktailName").style.color = champ.Mixed;
+    
+                document.getElementById("vertical-palette").innerHTML = champ.Palette
+                    .map(color => `<div class="color-box" style="background:${color};"></div>`)
+                    .join("");
+                
+                document.getElementById("liquid-overlay").style.backgroundColor = champ.Mixed;
+
+                document.getElementById("ingredients").innerHTML = champ.Ingredients
+                    .map(i => `<div class="pill">${i}</div>`)
+                    .join("");
+    
+                document.getElementById("preparation-list").innerHTML = champ.Preparation
+                    .map(step => `<li>${step}</li>`)
+                    .join("");
+            });
+    </script>    
+</body>
+</html>
